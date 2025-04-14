@@ -1,13 +1,17 @@
 import os
+import sys
+from datetime import datetime
 from dotenv import load_dotenv
-import google.generativeai as genai
+import google.generativeai as gen_ai
+from google import genai
+from google.genai import types
 import streamlit as st
 import time
 import random
 from utils import SAFETY_SETTTINGS
 import json
 from datetime import datetime
-from prompts.conversationPrompt import prompt
+#from prompts.conversationPrompt import prompt
 
 
 # Load environment variables from .env file
@@ -97,8 +101,9 @@ with st.sidebar:
 
 # Initialize Gemini
 try:
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY_CUSTOM"))
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    gen_ai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    #gen_ai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 except AttributeError as e:
     st.error("⚠️ Please configure your Gemini API key first.")
     st.stop()
@@ -113,9 +118,9 @@ generation_config = {
 
 try:
     
-    model_llm = genai.GenerativeModel('gemini-pro')
-    model = genai.GenerativeModel('gemini-pro')
-    chat = model.start_chat()
+    model_llm = gen_ai.GenerativeModel('gemini-2.0-flash')
+    #model = genai.GenerativeModel('gemini-2.0-flash')
+    #chat = model.start_chat()
 except Exception as e:
     st.error(f"Error initializing model: {str(e)}")
     st.stop()
@@ -125,6 +130,34 @@ for message in st.session_state.chat_history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+audio_value = st.audio_input("Record a voice message")
+
+def save_audio_file(audio_bytes, file_extension) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"audio_{timestamp}.{file_extension}"
+
+    with open(file_name, "wb") as f:
+        f.write(audio_bytes)
+
+    return file_name
+
+if audio_value:
+    audio_filename = save_audio_file(audio_value.read(), "wav")
+    with open(audio_filename, 'rb') as f:
+        audio_bytes = f.read()
+    response = client.models.generate_content(
+    model='gemini-2.0-flash',
+    contents=[
+        "You are a medical practitioner chatbot providing accurate medical information, adopting a doctor's perspective in your responses. Now, provide a detailed response to the following query",
+        types.Part.from_bytes(
+        data=audio_bytes,
+        mime_type='audio/wav',
+    )
+  ]
+)
+    st.write(response.text)
+
+    
 # Chat input and response
 # Chat input and response
 if prompt := st.chat_input("Ask me anything about medications...", key="chat_input"):
@@ -139,12 +172,12 @@ if prompt := st.chat_input("Ask me anything about medications...", key="chat_inp
         message_placeholder.markdown("🤔 Thinking...")
         try:
             # Step 1: Process the query with the custom model
-            custom_response = ""
-            for chunk in model.start_chat().send_message(prompt, stream=True, safety_settings=SAFETY_SETTTINGS):
-                custom_response += chunk.text
+            #custom_response = ""
+            #for chunk in model.start_chat().send_message(prompt, stream=True, safety_settings=SAFETY_SETTTINGS):
+            #    custom_response += chunk.text
 
             # Step 2: Append the medical practitioner chatbot prompt for detailed response
-            detailed_prompt = f"Follow these instructions carefully: You are a medical practitioner chatbot providing accurate medical information, adopting a doctor's perspective in your responses. Structure your answers in the following format if applicable:\n{custom_response},"
+            detailed_prompt = f"Follow these instructions carefully: You are a medical practitioner chatbot providing accurate medical information, adopting a doctor's perspective in your responses. If you receive a query in a language other than English, answer in that language. Now, provide a detailed response to the following query:\n{prompt}"
             
             # Step 3: Use the final prompt as input to the general model for medical advice
             detailed_response = ""
@@ -152,19 +185,19 @@ if prompt := st.chat_input("Ask me anything about medications...", key="chat_inp
                 detailed_response += chunk.text
 
             # Step 4: Simplify the language and limit the response to concise and easily understandable terms
-            simplified_prompt = f"Now, simplify the following response and make it easy to understand for a non-medical person, with a clear and simple explanation:\n{detailed_response}"
+            #simplified_prompt = f"Now, simplify the following paragraph and make it easy to understand for a non-medical person, with a clear and simple explanation in the same language as that of the paragraph:\n{detailed_response}"
 
             # Step 5: Use the simplified prompt to generate a user-friendly response
-            simplified_response = ""
-            for chunk in model_llm.start_chat().send_message(simplified_prompt, stream=True, safety_settings=SAFETY_SETTTINGS):
-                simplified_response += chunk.text
+            #simplified_response = ""
+            #for chunk in model_llm.start_chat().send_message(simplified_prompt, stream=True, safety_settings=SAFETY_SETTTINGS):
+            #    simplified_response += chunk.text
 
             # Display the final simplified response
-            full_response = simplified_response
+            full_response = detailed_response
             message_placeholder.markdown(full_response)
             add_message("assistant", full_response)
 
-        except genai.types.generation_types.BlockedPromptException as e:
+        except gen_ai.types.generation_types.BlockedPromptException as e:
             st.error(f"⚠️ Content blocked: {str(e)}")
         except Exception as e:
             st.error(f"⚠️ An error occurred: {str(e)}")
