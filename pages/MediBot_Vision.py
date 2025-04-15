@@ -10,11 +10,6 @@ from dotenv import load_dotenv
 
 from transformers import pipeline
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.preprocessing import image as img
-import numpy as np
-
 def mri_brain_tumour_classifier(file_path: str) -> str:
     #Function to detect brain tumout in MRI scans
     # Takes an imagethe file path of the image as input and returns the predicted label as string
@@ -65,7 +60,7 @@ config = {
 
 st.set_page_config(
     page_title="MediBot Vision Pro",
-    page_icon="🔥",
+    page_icon="💊",
     menu_items={
         'About': "# Made by KT"
     }
